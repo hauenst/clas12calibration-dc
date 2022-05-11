@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.clas.detector.clas12calibration.dc.analysis.Coordinate;
-import static org.clas.detector.clas12calibration.dc.calt0.ReadTT.t0min;
 import org.clas.detector.clas12calibration.dc.calt2d.SegmentProperty;
 import org.clas.detector.clas12calibration.viewer.AnalysisMonitor;
 import org.jlab.detector.calib.utils.CalibrationConstants;
@@ -25,7 +24,6 @@ import org.jlab.groot.group.DataGroup;
 import org.jlab.io.base.DataBank;
 import org.jlab.io.base.DataEvent; 
 import org.jlab.detector.calib.utils.ConstantsManager;
-import org.jlab.groot.data.GraphErrors;
 import org.jlab.groot.fitter.DataFitter;
 import org.jlab.groot.math.F1D;
 import org.jlab.io.hipo.HipoDataSource;
@@ -108,6 +106,7 @@ public class T0Calib extends AnalysisMonitor{
     //H1F[][][][] h = new H1F[6][6][nSlots7][nCables6];
     private Map<Coordinate, H1F> TDCHis        = new HashMap<Coordinate, H1F>();    
     public  Map<Coordinate, FitLine> TDCFits   = new HashMap<Coordinate, FitLine>();
+    public  Map<Coordinate, F1D> ERFFits   = new HashMap<Coordinate, F1D>();
     public  Map<Coordinate, Double> T0s        = new HashMap<Coordinate, Double>();
     
     @Override
@@ -119,7 +118,6 @@ public class T0Calib extends AnalysisMonitor{
         DataGroup hgrps = new DataGroup(6,7);
         String hNm;
         String hTtl;
-        int ijk=-1;
         for (int i = 0; i < nsec; i++)
         {
             for (int j = 0; j < nsl; j++)
@@ -130,6 +128,10 @@ public class T0Calib extends AnalysisMonitor{
                     {
                         hNm = String.format("timeS%dS%dS%dCbl%d", i + 1, j + 1, k + 1, l + 1);
                         TDCHis.put(new Coordinate(i,j,k, l), new H1F(hNm, 150, tLow4T0Fits[j], tHigh4T0Fits[j])); 
+
+
+                        ERFFits.put(new Coordinate(i,j,k, l), new F1D("erfcFunc","0.5*[amp]*erf(-x, -[mean], [sigma])+[p0]", TDCHis.get(new Coordinate(i,j,k, l)).getDataX(0), TDCHis.get(new Coordinate(i,j,k, l)).getDataX(TDCHis.get(new Coordinate(i,j,k, l)).getMaximumBin())));
+                                   
                                                                                                                                                                                         // HBHits
                         hTtl = String.format("time (Sec%d SL%d Slot%d Cable%d)", i + 1, j + 1, k + 1, l + 1);
                         TDCHis.get(new Coordinate(i,j,k, l)).setTitleX(hTtl);
@@ -288,16 +290,19 @@ public class T0Calib extends AnalysisMonitor{
     public List<FittedHit> hits = new ArrayList<>();
     Map<Integer, ArrayList<Integer>> segMapTBHits = new HashMap<Integer, ArrayList<Integer>>();
     Map<Integer, SegmentProperty> segPropMap = new HashMap<Integer, SegmentProperty>();
-    //List<FittedHit> hitlist = new ArrayList<>();
-    private ReadTT cableMap = new ReadTT();
     @Override
     public void processEvent(DataEvent event) {
         
         if (!event.hasBank("RUN::config")) {
             return ;
         }
+
+        if (!event.hasBank("REC::Particle")) {
+            return ;
+        }
         
         DataBank bank = event.getBank("RUN::config");
+        DataBank bank2 = event.getBank("REC::Particle");
         int newRun = bank.getInt("run", 0);
         if (newRun == 0) {
            return ;
@@ -330,10 +335,24 @@ public class T0Calib extends AnalysisMonitor{
             int wire1to16 = (int) ((wire - 1) % 16 + 1);
             int cable1to6 = ReadTT.CableID[lay - 1][wire1to16 - 1];
             double time = (double) bnkHits.getFloat("time", j)
-                    + (double) bnkHits.getFloat("T0", j);   
-            if(bnkHits.getByte("trkID", j)!=-1)
+                    + (double) bnkHits.getFloat("T0", j)
+                    + (double)  bnkHits.getFloat("tBeta",j);   
+            double beta = bnkHits.getFloat("beta",j);
+            if(bnkHits.getByte("trkID", j)!=-1 && 11 == bank2.getInt("pid", 0)){
+
+                final int trkID = bnkHits.getByte("trkID", j);
+
+                final int pid = this.readPID(event, trkID);
+
+                if(beta > 0.95 && (pid == 11 || pid == 211 || pid == -211))
+
+                {
+
                 this.TDCHis.get(new Coordinate(sec-1, sl-1, slot1to7-1, cable1to6-1))
                     .fill(time);
+
+                }
+            }
             }
         } 
     
@@ -390,164 +409,74 @@ public class T0Calib extends AnalysisMonitor{
         
         return pass;
     }
-
-    private double getThreshold(H1F h) {
-        // find the bin at which the integral corresponds to 1% of the full integral to max 
-        // this is the max range to obtain a threshold from a flat line fit
-        double integral = 0;
-        double partintegral = 0;
-        
-        GraphErrors gr = new GraphErrors(); 
-        for (int ix =0; ix< h.getMaximumBin(); ix++) {
-            integral+= h.getBinContent(ix);
-        }
-        double x = 0;
-        for (int ix =0; ix< h.getMaximumBin(); ix++) {
-            x = h.getDataX(ix);
-            double y = h.getBinContent(ix);
-            double err = h.getBinError(ix);
-            if(err<1) {
-                err = 1.4142;
-            }
-            // fill graph
-            gr.addPoint(x, y, 0, err);
-            partintegral += h.getBinContent(ix);
-            
-            if(partintegral>0.5*integral)
-                break;
-        }
-        // fit the graph 
-        F1D f0 = new F1D("f0","[p0]", h.getDataX(0), x);
-        f0.setParameter(0, 0);
-        DataFitter.fit(f0, gr, "Q"); 
-        return f0.getParameter(0);
-    }
     
     private double[] getT0(int i, int j, int k, int l) {
         System.out.println("Getting t0 for i,j,k,l = "+i+" "+j+" "+k+" "+l );
         H1F h = this.TDCHis.get(new Coordinate(i,j,k,l));
-        
-        double thres = 0;//this.getThreshold(h);
+
         double [] T0val = new double[2];
-        F1D f1 = new F1D("f1","[a]*x+[b]", h.getDataX(0), h.getDataX(20));
         
         F1D gausFunc = new F1D("gausFunc", "[amp]*gaus(x,[mean],[sigma])+[p0]", 
-                h.getDataX(0), h.getDataX(h.getMaximumBin())); 
+            h.getDataX(0), h.getDataX(h.getMaximumBin())); 
         
         gausFunc.setParameter(0, h.getMax());
-        gausFunc.setParameter(1, -0.0);
+        gausFunc.setParameter(1, h.getDataX(h.getMaximumBin()));
         gausFunc.setParameter(2, 0.05);
         gausFunc.setParameter(3, 0);
         
         DataFitter.fit(gausFunc, h, "Q"); 
         
-        double tmidY = gausFunc.getParameter(0)/2;
-        double tminY = gausFunc.getParameter(3);
-        double del_min_halfmaxY = tmidY-tminY;
-        
-        double minRangeY = tmidY-del_min_halfmaxY/2;
-        double maxRangeY = tmidY;
-        if(h.getMax()>tmidY && tmidY+(h.getMax()-tmidY)/3 < h.getMax() ) {
-            maxRangeY+=(h.getMax()-tmidY)/3;
-        }
-        
-        //System.out.println(" minRangeY "+minRangeY+" maxRangeY "+maxRangeY);
-        
-        GraphErrors gr = new GraphErrors(); 
-        
-        int t0idx  = -1;
-        int t0midx = -1;
-        double t0 = Double.NEGATIVE_INFINITY; 
-        for (int ix =0; ix< h.getMaximumBin(); ix++) {
-            if(h.getBinContent(ix)>=maxRangeY) {
-                t0midx= ix;
-                break;
-            }
-        }
-        for (int ix =0; ix< h.getMaximumBin(); ix++) {
-            if(h.getBinContent(ix)>=minRangeY) {
-                t0idx= ix;
-                break;
-            }
-        }
-        int diffBins = t0midx - t0idx;
-        //System.out.println("diffBins "+diffBins);
-//        for (int ix =0; ix< h.getMaximumBin(); ix++) {
-//            if(h.getBinContent(ix) >thres 
-//                        && t0 == Double.NEGATIVE_INFINITY) {
-//                    t0 = h.getDataX(ix);
-//                    t0idx = ix;
-//                break;
-//            }
-//        }
-        int histRangeIntegl = 0;
-        for (int ix =t0idx; ix<= t0midx; ix++) {
-            gr.addPoint(h.getDataX(ix), h.getBinContent(ix), 0, h.getBinError(ix));
-            histRangeIntegl+= h.getBinContent(ix);
-        }
-        
-        if(gr.getDataSize(0)>1 && histRangeIntegl>50) {
-            f1.setParameter(0, h.getDataX(t0idx));
-            f1.setParameter(1, (h.getBinContent(t0midx)-h.getBinContent(t0idx))/(h.getDataX(t0midx)-h.getDataX(t0idx)));
+        F1D erfcFunc = new F1D("erfcFunc", "0.5*[amp]*erf(-x, -[mean], [sigma])+[p0]", 
+                h.getDataX(0), h.getDataX(h.getMaximumBin()));
 
-            f1.setRange(h.getDataX(t0idx), h.getDataX(t0midx));
-            DataFitter.fit(f1, gr, "Q"); 
-        
-            double n = tminY-f1.getParameter(1);
-            double d = f1.getParameter(0);
-            double en = -f1.parameter(1).error();
-            double ed = f1.parameter(0).error();
-            double T0 = n/d;
-            double T0Err = this.calcError(n, en, d, ed);
-            if(Double.isNaN(T0)|| Double.isNaN(T0Err) || f1.getChiSquare()/(double)f1.getNDF()>3){
-                f1.setParameter(0, 0);
-                f1.setParameter(1, 0);
-                T0 = ReadTT.T0[i][j][k][l];
-                T0Err = ReadTT.T0ERR[i][j][k][l];
-                T0val[1] = T0Err;
-                T0val[0] = T0;
-                h.setOptStat(0);
-                String t = "CCDB T0 = "+(float)ReadTT.T0[i][j][k][l];
-                h.setTitle(t);
-                h.getAttributes().setLineColor(9);
-                T0s.put(new Coordinate(i,j,k, l), T0val[0]);
-                this.updateTable(i, j, k, T0val[0]);
-                
-                return T0val;
-            }
-            T0val[1] =T0Err;
-            T0val[0] = T0;
-            
-            h.setOptStat(0);
-            String t = "CCDB T0 = "+(float)ReadTT.T0[i][j][k][l]+"\n T0 = "+(float)T0val[0];
-            h.setTitle(t);
-            T0s.put(new Coordinate(i,j,k, l), T0val[0]);
-            this.updateTable(i, j, k, T0val[0]);
-            TDCFits.put(new Coordinate(i,j,k,l), 
-                    new FitLine("f"+""+i+""+j+""+k+""+l, i, j, k, l, 
-                    T0val[0], h.getDataX(t0midx+diffBins/2)) );
-            TDCFits.get(new Coordinate(i,j,k,l)).setLineStyle(4);
-            TDCFits.get(new Coordinate(i,j,k,l)).setLineWidth(5);
-            TDCFits.get(new Coordinate(i,j,k,l)).setLineColor(8);
-            TDCFits.get(new Coordinate(i,j,k,l)).setParameters(new double[] {f1.getParameter(0), f1.getParameter(1)});
+            erfcFunc.setParameter(0, gausFunc.getParameter(0));
+            erfcFunc.setParameter(1, gausFunc.getParameter(1));
+            erfcFunc.setParameter(2, gausFunc.getParameter(2));
+            erfcFunc.setParameter(3, gausFunc.getParameter(3));
+            erfcFunc.setParLimits(3, 0., Double.POSITIVE_INFINITY);
 
-        } else {
-            T0val[0] = ReadTT.T0[i][j][k][l];
-            T0val[1] = ReadTT.T0ERR[i][j][k][l];
-            h.setOptStat(0);
-            String t = "CCDB T0 = "+(float)ReadTT.T0[i][j][k][l];
-            h.setTitle(t);
-            h.getAttributes().setLineColor(9);
-            T0s.put(new Coordinate(i,j,k, l), T0val[0]);
-            this.updateTable(i, j, k, T0val[0]);
+        DataFitter.fit(erfcFunc, h, "Q");
+
+        this.ERFFits.get(new Coordinate(i,j,k,l)).setParameter(0, erfcFunc.getParameter(0));
+        this.ERFFits.get(new Coordinate(i,j,k,l)).setParameter(1, erfcFunc.getParameter(1));
+        this.ERFFits.get(new Coordinate(i,j,k,l)).setParameter(2, erfcFunc.getParameter(2));
+        this.ERFFits.get(new Coordinate(i,j,k,l)).setParameter(3, erfcFunc.getParameter(3));
+
+        double T0 = erfcFunc.getParameter(1)-1.5*erfcFunc.getParameter(2);
+        double T0Err = Math.sqrt(erfcFunc.parameter(1).error()*erfcFunc.parameter(1).error()+erfcFunc.parameter(2).error()*erfcFunc.parameter(2).error());
+        if(Double.isNaN(T0)|| Double.isNaN(T0Err)){
+            T0 = 0;
+            T0Err = 1.42;
         }
-        
+
+        T0val[1] =T0Err;
+        T0val[0] = T0;
+
+        T0s.put(new Coordinate(i,j,k, l), T0val[0]);
+        this.updateTable(i, j, k, T0val[0]);
        
         return T0val;
     }
 
-    private double calcError(double n, double en, double d, double ed) {
-        return Math.sqrt((en/d)*(en/d)+(ed*n/(d*d))*(ed*n/(d*d)));
-    }
+    private int readPID(DataEvent event, int trkId) {
+        int pid = 0;
+        //fetch the track associated pid from the REC tracking bank
+        if (!event.hasBank("REC::Particle") || !event.hasBank("REC::Track"))
+            return pid;
+        DataBank bank = event.getBank("REC::Track");
+        //match the index and return the pid
+        int rows = bank.rows();
+        for (int i = 0; i < rows; i++) {
+            if (bank.getByte("detector", i) == 6 &&
+                    bank.getShort("index", i) == trkId - 1) {
+                DataBank bank2 = event.getBank("REC::Particle");
+                if(bank2.getByte("charge", bank.getShort("pindex", i))!=0) {
+                    pid = bank2.getInt("pid", bank.getShort("pindex", i));
+                }
+            }
+        }
+
+        return pid;
+    } 
 }
 

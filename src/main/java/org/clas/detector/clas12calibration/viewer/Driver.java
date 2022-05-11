@@ -41,8 +41,6 @@ public class Driver {
         imageIcon.getImage().getScaledInstance(800, 400, java.awt.Image.SCALE_SMOOTH);
         JLabel imgLabel = new JLabel(imageIcon);
         frame.add(imgLabel, BorderLayout.PAGE_START);
-        frame.add(panel);
-        frame.pack();
         frame.setVisible(true);
         
         T2DButton = new JButton("T2D");
@@ -126,7 +124,8 @@ public class Driver {
             }
         });
         panel.add(TDCButton);
-        
+        frame.pack();
+        frame.setVisible(true);
         
         frame.add(panel, BorderLayout.PAGE_END);
         //frame.add(T2DButton, BorderLayout.PAGE_END);
