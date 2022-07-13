@@ -208,6 +208,23 @@ public class T0Calib extends AnalysisMonitor{
         this.plotFits();
     }
     public void plotFits() {
+
+        File directory = new File("./T0");
+        if (! directory.exists()){
+            directory.mkdirs();
+
+        }
+        
+        DateFormat df = new SimpleDateFormat("MM-dd-yyyy_hh.mm.ss_aa");
+
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter("./T0/T0s_output.txt", false));
+            writer.write("T0 values generated at " + df.format(new Date()) + "\n");
+            writer.append("DerT0\tDerT0Err\tCCDBT0\tCCDBT0Err\tErfT0\tErfT0Err\n");
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         
         //pw.close();
         File file2 = new File("");
@@ -216,7 +233,6 @@ public class T0Calib extends AnalysisMonitor{
         file20 = outfile2;
         File file20db = new File("");
         file20db = outfile3;
-        DateFormat df = new SimpleDateFormat("MM-dd-yyyy_hh.mm.ss_aa");
         String fileName = "Files/ccdb_T0Corr_run" + this.runNumber + "time_" 
                 + df.format(new Date())  + ".txt";
         file2.renameTo(new File(fileName));
@@ -601,6 +617,12 @@ public class T0Calib extends AnalysisMonitor{
         T0Errs.put(new Coordinate(i,j,k, l), T0val[1]);
         this.updateTable(i, j, k, T0val[0]);
 
+        File directory = new File("./T0");
+        if (! directory.exists()){
+            directory.mkdirs();
+
+        }
+
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter("./T0/T0s_output.txt", true));
             writer.append("" + T0val[0] + "\t");
@@ -643,6 +665,12 @@ public class T0Calib extends AnalysisMonitor{
     } 
 
     private void printHistoToFile(int i, int j, int k, int l) {
+        File directory = new File("./T0");
+        if (! directory.exists()){
+            directory.mkdirs();
+
+        }
+
         EmbeddedCanvas canvas = new EmbeddedCanvas(1200, 800);
         canvas.draw(this.TDCHis.get(new Coordinate(i, j, k, l)));
 
