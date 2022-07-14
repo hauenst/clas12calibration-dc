@@ -155,9 +155,7 @@ public class T0Calib extends AnalysisMonitor{
 
                         ERFFits.put(new Coordinate(i,j,k, l), new F1D("erfcFunc","0.5*[amp]*erf(-x, -[mean], [sigma])+[p0]", TDCHis.get(new Coordinate(i,j,k, l)).getDataX(0), TDCHis.get(new Coordinate(i,j,k, l)).getDataX(TDCHis.get(new Coordinate(i,j,k, l)).getMaximumBin())));
 
-                        DerHis.put(new Coordinate(i,j,k, l), new H1F(hNm, 150, tLow4T0Fits[j], tHigh4T0Fits[j]));
-
-                        DERFits.put(new Coordinate(i,j,k, l), new F1D("derFunc", "1.25*[amp]*(x-[mean])*gaus(x,[mean],[sigma])/([sigma]*[sigma]*[sigma])", TDCHis.get(new Coordinate(i,j,k, l)).getDataX(0), TDCHis.get(new Coordinate(i,j,k, l)).getDataX(TDCHis.get(new Coordinate(i,j,k, l)).getMaximumBin())));
+                        DerHis.put(new Coordinate(i,j,k, l), new H1F(hNm, tBinnum4T0Fits[j], tLow4T0Fits[j], tHigh4T0Fits[j]));
 
                         DERFits.put(new Coordinate(i,j,k, l), new F1D("derFunc", "[amp]*gaus(x,[mean],[sigma])", TDCHis.get(new Coordinate(i,j,k, l)).getDataX(0), TDCHis.get(new Coordinate(i,j,k, l)).getDataX(TDCHis.get(new Coordinate(i,j,k, l)).getMaximumBin())));
                         // HBHits
@@ -567,14 +565,22 @@ public class T0Calib extends AnalysisMonitor{
         }
 
         double[] sec_der = new double[h.getMaximumBin()];
+        double[] sec_der_avg = new double[h.getMaximumBin()];
         double[] times = new double[h.getMaximumBin()];
 
         int index = 0;
 
         for (int ix =1; ix< h.getMaximumBin()-1; ix++) {
             times[index]=h.getDataX(ix);
-            sec_der[index++]=h.getBinContent(ix+1)-2*h.getBinContent(ix)+h.getBinContent(ix-1);
+            sec_der[index++]=h.getBinContent(ix+1)-2*h.getBinContent(ix)+h.getBinContent(ix-1); //no division by bin size - only a constant scaling factor
         }
+
+        for(int t = 0; t < h.getMaximumBin(); ++t)
+        {
+            sec_der_avg[t]=(((t-1)>=0)?(sec_der[t-1]):(0.)+sec_der[t]+(((t+1)<=h.getMaximumBin())?(sec_der[t+1]):(0.)))/3.;
+        }
+
+        sec_der = sec_der_avg; //use averaging for 2nd derivative
 
         DataVector vec1 = new DataVector(times);
 
@@ -590,6 +596,7 @@ public class T0Calib extends AnalysisMonitor{
         gausderFunc.setParameter(0, derhis.getDataY(derhis.getMaximumBin()));
         gausderFunc.setParLimits(0, 0., Double.POSITIVE_INFINITY);
         gausderFunc.setParameter(1, erfcFunc.getParameter(1)-1.5*erfcFunc.getParameter(2));
+        gausderFunc.setParLimits(0, 0., 2.*(derhis.getDataX(derhis.getMaximumBin())-derhis.getDataX(derhis.getMaximumBin()-1)));
         gausderFunc.setParameter(2, erfcFunc.getParameter(2)/2);
 
         DataFitter.fit(gausderFunc, derhis, "QR");
