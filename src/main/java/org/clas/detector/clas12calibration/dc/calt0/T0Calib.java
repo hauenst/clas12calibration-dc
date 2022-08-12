@@ -158,6 +158,10 @@ public class T0Calib extends AnalysisMonitor{
                         DerHis.put(new Coordinate(i,j,k, l), new H1F(hNm, tBinnum4T0Fits[j], tLow4T0Fits[j], tHigh4T0Fits[j]));
 
                         DERFits.put(new Coordinate(i,j,k, l), new F1D("derFunc", "[amp]*gaus(x,[mean],[sigma])", TDCHis.get(new Coordinate(i,j,k, l)).getDataX(0), TDCHis.get(new Coordinate(i,j,k, l)).getDataX(TDCHis.get(new Coordinate(i,j,k, l)).getMaximumBin())));
+                        
+
+                        //DERFits.put(new Coordinate(i,j,k, l), new F1D("derFunc", "1.25*[amp]*(x-[mean])*gaus(x,[mean],[sigma])/([sigma]*[sigma]*[sigma])", TDCHis.get(new Coordinate(i,j,k, l)).getDataX(0), TDCHis.get(new Coordinate(i,j,k, l)).getDataX(TDCHis.get(new Coordinate(i,j,k, l)).getMaximumBin())));
+                        
                         // HBHits
                         hTtl = String.format("time (Sec%d SL%d Slot%d Cable%d)", i + 1, j + 1, k + 1, l + 1);
                         TDCHis.get(new Coordinate(i,j,k, l)).setTitleX(hTtl);
@@ -564,23 +568,30 @@ public class T0Calib extends AnalysisMonitor{
             }
         }
 
-        double[] sec_der = new double[h.getMaximumBin()];
-        double[] sec_der_avg = new double[h.getMaximumBin()];
-        double[] times = new double[h.getMaximumBin()];
-
+        int helper = 0;
         int index = 0;
+        final int rebinning = 2;
+
+        double[] sec_der = new double[(int)Math.round((float)h.getMaximumBin()/(float)rebinning)];
+        double[] rebin = new double[(int)Math.round((float)h.getMaximumBin()/(float)rebinning)];
+        double[] times = new double[(int)Math.round((float)h.getMaximumBin()/(float)rebinning)];
 
         for (int ix =1; ix< h.getMaximumBin()-1; ix++) {
-            times[index]=h.getDataX(ix);
-            sec_der[index++]=h.getBinContent(ix+1)-2*h.getBinContent(ix)+h.getBinContent(ix-1); //no division by bin size - only a constant scaling factor
+            times[index]+=h.getDataX(ix);
+            rebin[index]+=h.getDataY(ix);
+            helper++;
+            if(helper == rebinning)
+            {
+                helper = 0;
+                times[index++]/=(float)rebinning;
+            }
         }
 
-        for(int t = 0; t < h.getMaximumBin(); ++t)
-        {
-            sec_der_avg[t]=(((t-1)>=0)?(sec_der[t-1]):(0.)+sec_der[t]+(((t+1)<=h.getMaximumBin())?(sec_der[t+1]):(0.)))/3.;
-        }
+        index = 0;
 
-        sec_der = sec_der_avg; //use averaging for 2nd derivative
+        for (int ix =1; ix< (int)Math.round((float)h.getMaximumBin()/(float)rebinning)-1; ix++) {
+            sec_der[index++]=rebin[ix+1]-2*rebin[ix]+rebin[ix-1]; //no division by bin size - only a constant scaling factor
+        }
 
         DataVector vec1 = new DataVector(times);
 
@@ -591,13 +602,14 @@ public class T0Calib extends AnalysisMonitor{
         DerHis.put(new Coordinate(i,j,k, l), derhis);
 
         F1D gausderFunc = new F1D("gausderFunc", "[amp]*gaus(x,[mean],[sigma])", 
-        derhis.getDataX(derhis.getMaximumBin()-2), derhis.getMaximumBin()+2);
+        derhis.getDataX(derhis.getMaximumBin()-2), derhis.getDataX(derhis.getMaximumBin()+2));
 
         gausderFunc.setParameter(0, derhis.getDataY(derhis.getMaximumBin()));
-        gausderFunc.setParLimits(0, 0., Double.POSITIVE_INFINITY);
-        gausderFunc.setParameter(1, erfcFunc.getParameter(1)-1.5*erfcFunc.getParameter(2));
-        gausderFunc.setParLimits(0, 0., 2.*(derhis.getDataX(derhis.getMaximumBin())-derhis.getDataX(derhis.getMaximumBin()-1)));
+        gausderFunc.setParameter(1, derhis.getDataX(derhis.getMaximumBin()));
         gausderFunc.setParameter(2, erfcFunc.getParameter(2)/2);
+
+        gausderFunc.setParLimits(0, 0., Double.POSITIVE_INFINITY);
+        gausderFunc.setParLimits(2, 0., 2.*(derhis.getDataX(derhis.getMaximumBin())-derhis.getDataX(derhis.getMaximumBin()-1)));
 
         DataFitter.fit(gausderFunc, derhis, "QR");
 
@@ -618,8 +630,8 @@ public class T0Calib extends AnalysisMonitor{
         T0ERFErrs.put(new Coordinate(i,j,k, l), T0valERF[1]);
 
         T0val[0] = gausderFunc.getParameter(1);
-        T0val[1] =gausderFunc.parameter(1).error();
-
+        T0val[1] = gausderFunc.parameter(1).error();
+        
         T0s.put(new Coordinate(i,j,k, l), T0val[0]);
         T0Errs.put(new Coordinate(i,j,k, l), T0val[1]);
         this.updateTable(i, j, k, T0val[0]);
