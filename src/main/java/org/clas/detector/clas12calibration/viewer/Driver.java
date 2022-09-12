@@ -72,8 +72,6 @@ public class Driver {
         JLabel imgLabel = new JLabel(imageIcon);
         frame.add(imgLabel, BorderLayout.PAGE_START);
         frame.add(panel);
-        frame.pack();
-        frame.setVisible(true);
         
         T2DButton = new JButton("T2D");
         T2DButton.setUI(new MetalButtonUI());
@@ -159,8 +157,13 @@ public class Driver {
         
         
         frame.add(panel, BorderLayout.PAGE_END);
+
+        //moved here from line 45
+        frame.pack();
+        frame.setVisible(true);
         //frame.add(T2DButton, BorderLayout.PAGE_END);
         
 
     }
 }
+
