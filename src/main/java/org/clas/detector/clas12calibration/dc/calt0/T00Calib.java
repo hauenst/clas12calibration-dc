@@ -90,7 +90,7 @@ public class T00Calib extends AnalysisMonitor {
 
         Scanner scan;
         //Absolute path here. Needs to be changed
-        File T0_file = new File("/home/aron/clas12calibration-dc-git-new2/T0_rebin2/FINAL_T0.txt");
+        File T0_file = new File("/Users/florian/FINAL_T0.txt");
         try {
             scan = new Scanner(T0_file);
 
@@ -344,7 +344,8 @@ public class T00Calib extends AnalysisMonitor {
                 {
                     this.TDCHis.get(new Coordinate(sec - 1, sl - 1))
                             // .fill(timecorrected);
-                            .fill(calibtime + old_T0 - new_T0s[cable1to6 - 1 + (slot1to7 - 1) * 6 + (sl - 1) * 6 * 7
+                    //		.fill(calibtime);
+                           .fill(calibtime + old_T0 - new_T0s[cable1to6 - 1 + (slot1to7 - 1) * 6 + (sl - 1) * 6 * 7
                                     + (sec - 1) * 6 * 7 * 6]);
 
                 }
@@ -404,7 +405,7 @@ public class T00Calib extends AnalysisMonitor {
 
     private double[] getT0(int i, int j) {
 
-        System.out.println("Getting t0 for i,j = " + i + " " + j);
+        System.out.println("Getting t00 for i,j = " + i + " " + j);
         H1F h = this.TDCHis.get(new Coordinate(i, j));
 
         double[] T0val = new double[2];
@@ -540,7 +541,7 @@ public class T00Calib extends AnalysisMonitor {
         T0s.put(new Coordinate(i, j), T0val[0]);
         T0Errs.put(new Coordinate(i, j), T0val[1]);
 
-        File directory = new File("./T0");
+        File directory = new File("./T00");
         if (!directory.exists()) {
             directory.mkdirs();
 
@@ -549,7 +550,9 @@ public class T00Calib extends AnalysisMonitor {
         T0 = gausderFunc.getParameter(1);
 
         try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter("./T0/T00s_output.txt", true));
+            BufferedWriter writer = new BufferedWriter(new FileWriter("./T00/T00s_output.txt", true));
+            writer.append("" + (i+1) + "\t"); //sector
+            writer.append("" + (j+1) + "\t"); //superlayer
             writer.append("" + T0val[0] + "\t");
             writer.append("" + T0val[1] + "\t");
             writer.append("" + T0valCCDB[0] + "\t");
@@ -573,7 +576,7 @@ public class T00Calib extends AnalysisMonitor {
     
 
     private void printHistoToFile(int i, int j) {
-        File directory = new File("./T0");
+        File directory = new File("./T00");
         if (!directory.exists()) {
             directory.mkdirs();
 
@@ -642,7 +645,7 @@ public class T00Calib extends AnalysisMonitor {
 
         canvas.draw(T0LineCCDBpE);
 
-        canvas.save("./T0/T00s_" + i + "_" + j + ".png", org.jlab.groot.data.SaveType.PNG);
+        canvas.save("./T00/T00s_" + i + "_" + j + ".png", org.jlab.groot.data.SaveType.PNG);
 
         EmbeddedCanvas canvas2 = new EmbeddedCanvas(1200, 800);
         canvas2.draw(this.TDCHis.get(new Coordinate(i, j)));
@@ -653,7 +656,7 @@ public class T00Calib extends AnalysisMonitor {
 
         canvas2.draw(this.DERFits.get(new Coordinate(i, j)), "same");
 
-        canvas2.save("./T0/T00fit_" + i + "_" + j + ".png", org.jlab.groot.data.SaveType.PNG);
+        canvas2.save("./T00/T00fit_" + i + "_" + j + ".png", org.jlab.groot.data.SaveType.PNG);
     }
 
     private int readPID(DataEvent event, int trkId) {
