@@ -5,6 +5,8 @@
  */
 package org.clas.detector.clas12calibration.dc.calt2d;
 
+//import org.jlab.rec.dc.Constants;
+
 /**
  *
  * @author ziegler
@@ -41,8 +43,9 @@ public class Utilities {
     public double getDeltaTimeBeta(double x, double beta, double distbeta, double v_0) {
       
         double dtbscl = 0.5*(x/Math.sqrt(x*x+T2DCalib.DBF)+1);
-        dtbscl =0.1;
+       // dtbscl = 0.1;
         double dtb0 =(Math.sqrt(x * x + (distbeta * beta * beta) * (distbeta* beta * beta)) - x) / v_0;
+       // double dtb0 =(Math.sqrt(x * x + (distbeta * beta * beta) * (distbeta* beta * beta)) - x) / Constants.V0AVERAGED;
         double dtb = dtbscl*dtb0;
         return dtb;
     }

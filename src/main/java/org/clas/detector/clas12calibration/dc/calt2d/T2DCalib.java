@@ -60,6 +60,7 @@ public class T2DCalib extends AnalysisMonitor{
     private SchemaFactory schemaFactory = new SchemaFactory();
     FitPanel fp;
     PrintWriter pw = null;
+    PrintWriter pw2 = null;
     File outfile = null;
     private int runNumber;
     private Utilities util = new Utilities();
@@ -71,9 +72,6 @@ public class T2DCalib extends AnalysisMonitor{
         super(name, ccdb);
         this.setAnalysisTabNames("TrackDoca vs T","TrackDoca vs T Graphs","CalcDoca vs T","Time Residuals","Parameters");
         this.init(false, "v0:vmid:R:tmax:distbeta:delBf:b1:b2:b3:b4");
-        //outfile = new File("Files/ccdbConstants.txt");
-        //pw = new PrintWriter(outfile);
-        //pw.printf("#& sector superlayer component v0 deltanm tmax distbeta delta_bfield_coefficient b1 b2 b3 b4 delta_T0 c1 c2 distbetascale\n");
         
         String dir = ClasUtilsFile.getResourceDir("CLAS12DIR", "etc/bankdefs/hipo4");
         schemaFactory.initFromDirectory(dir);
@@ -140,9 +138,9 @@ public class T2DCalib extends AnalysisMonitor{
         int ij = 0;
         for (int i = 0; i < nsl; i++) {
             TvstrkdocasFitPars.put(new Coordinate(i), new MnUserParameters());
-            timeResi.put(new Coordinate(i), new H1F("time residual for sly " + (i+1), 100, -0.5, 0.5)); 
-            timeResiFromFile.put(new Coordinate(i), new H1F("time residual for sly " + (i+1), 100, -0.5, 0.5)); 
-            timeResiNew.put(new Coordinate(i), new H1F("time residual for sly " + (i+1), 100, -0.5, 0.5)); 
+            timeResi.put(new Coordinate(i), new H1F("time residual for sly " + (i+1), 100, -0.3, 0.3)); 
+            timeResiFromFile.put(new Coordinate(i), new H1F("time residual for sly " + (i+1), 100, -0.3, 0.3)); 
+            timeResiNew.put(new Coordinate(i), new H1F("time residual for sly " + (i+1), 100, -0.3, 0.3)); 
             fitResi.put(new Coordinate(i), new H1F("fit residual for sly " + (i+1), 100, -0.5, 0.5));
             
             tr.addDataSet(timeResi.get(new Coordinate(i)), i);
@@ -278,17 +276,21 @@ public class T2DCalib extends AnalysisMonitor{
     }
     public void plotFits(boolean fitted) throws FileNotFoundException {
         if(fitted==true) {
-            //pw.close();
-            //File file2 = new File("");
-            //file2 = outfile;
+            
+           
             DateFormat df = new SimpleDateFormat("MM-dd-yyyy_hh.mm.ss_aa");
             String fileName = "Files/ccdb_run" + this.runNumber + "time_" 
                     + df.format(new Date())+ "iteration_"+this.iterationNum  + ".txt";
-            //file2.renameTo(new File(fileName));
+           
+            String fileName2 = "Files/parameteranderror_run" + this.runNumber + "time_" 
+                    + df.format(new Date())+ "iteration_"+this.iterationNum  + ".txt";
            
             pw = new PrintWriter(fileName);
             pw.printf("#& sector superlayer component v0 deltanm tmax distbeta delta_bfield_coefficient b1 b2 b3 b4 delta_T0 c1 c2 c3\n");
+            pw2 = new PrintWriter(fileName2);
+            pw2.printf("#& sector superlayer component v0 +/-v0 tmax +/-tmax vmid +/-vmid delta_bf +/-delta_bf distbeta +/-distbeta \n");
         
+            
             int ij =0;
             int ip =0;
             NbRunFit++;
@@ -365,9 +367,29 @@ public class T2DCalib extends AnalysisMonitor{
                     TvstrkdocasFitPars.get(new Coordinate(i)).value(1),
                     0);
                     
+                    pw2.printf("%d\t %d\t %d\t %.6f\t +/- %.6f\t %.6f\t +/- %.6f\t %.6f\t +/- %.6f\t %.6f\t +/- %.6f\t %.6f\t +/- %.6f\n",
+                            (isec+1), (i+1), 0,
+                            //v0
+                            TvstrkdocasFitPars.get(new Coordinate(i)).value(0),
+                            TvstrkdocasFitPars.get(new Coordinate(i)).error(0),
+                            //tmax
+                            TvstrkdocasFitPars.get(new Coordinate(i)).value(3),
+                            TvstrkdocasFitPars.get(new Coordinate(i)).error(3),
+                            //vmid
+                            TvstrkdocasFitPars.get(new Coordinate(i)).value(1),
+                            TvstrkdocasFitPars.get(new Coordinate(i)).error(1),
+                            //deltaBf
+                            TvstrkdocasFitPars.get(new Coordinate(i)).value(5),
+                            TvstrkdocasFitPars.get(new Coordinate(i)).error(5),
+                            //distbeta
+                            TvstrkdocasFitPars.get(new Coordinate(i)).value(4),
+                            TvstrkdocasFitPars.get(new Coordinate(i)).error(4));
+                            
+                    
                 }
             }
             pw.close();
+            pw2.close();
             //this.rePlotResi();
         }
     }
@@ -614,13 +636,13 @@ public class T2DCalib extends AnalysisMonitor{
          
     private void fitTimeResPlot(H1F h1, EmbeddedCanvas canvasRes) {
         if (h1==null) return;
-        F1D gaus1Func = new F1D("gaus1Func", "[amp]*gaus(x,[mean],[sigma])", -0.5, 0.5); 
+        F1D gaus1Func = new F1D("gaus1Func", "[amp]*gaus(x,[mean],[sigma])", -0.3, 0.3); 
         gaus1Func.setParameter(0, h1.getMax());
         gaus1Func.setParameter(1, 0.0);
         gaus1Func.setParameter(2, 0.05);
         DataFitter.fit(gaus1Func, h1, "Q");
         //refit using a double gaussian 
-        F1D gausFunc = new F1D("gausFunc", "[amp]*gaus(x,[mean],[sigma])+[amp2]*gaus(x,[mean],[sigma2])", -0.5, 0.5); 
+        F1D gausFunc = new F1D("gausFunc", "[amp]*gaus(x,[mean],[sigma])+[amp2]*gaus(x,[mean],[sigma2])", -0.3, 0.3); 
         gausFunc.setLineColor(4);
         gausFunc.setLineStyle(1);
         gausFunc.setLineWidth(2);
@@ -630,12 +652,13 @@ public class T2DCalib extends AnalysisMonitor{
         gausFunc.setParameter(3, gaus1Func.getParameter(0)*0.15);
         gausFunc.setParameter(4, gaus1Func.getParameter(2));
         gausFunc.setOptStat(1110);
-        h1.setOptStat(1110);
+        h1.setOptStat(110); //only number of entries
         //canvasRes.clear();
         
         DataFitter.fit(gausFunc, h1, "Q");
         //gausFunc.setOptStat(101100);
-        gausFunc.setOptStat(0);
+        gausFunc.setOptStat(101100); //mean and both sigmas
+        
         
         int effSig = (int) (10000*this.getError(gausFunc.getParameter(0), gausFunc.getParameter(1), gausFunc.getParameter(2), 
                 gausFunc.getParameter(3), gausFunc.getParameter(1), gausFunc.getParameter(4)));

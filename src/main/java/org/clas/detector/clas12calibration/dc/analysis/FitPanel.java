@@ -163,9 +163,9 @@ public class FitPanel {
                     // aa is true for parameters "R", "distbeta", "b1", "b2", "b3", and "b4"
                     boolean aa = i==2 || i==4 || i>5;
                     // bb is true for parameter "tmax" on superlayers 3 and 4 only
-                    boolean bb = i==3 && (j==2 || j==3);
+                    boolean bb = i==3 && j==6; //(j==2 || j==3);
                     // cc is true for parameter "delBf" on superlayers 1, 2, 5, and 6 only
-                    boolean cc = i==5 ;//&& (j==0 || j==1 || j==4 || j==5);
+                    boolean cc = i==5; // && (j==0 || j==1 || j==4 || j==5);
                     if(aa || bb || cc) {
                         fixFit[i][j].setSelected(true);
                     } else {
